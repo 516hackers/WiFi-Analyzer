@@ -8,28 +8,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: kivy/buildozer:latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        fetch-depth: 0
     
-    - name: Install system dependencies
+    - name: Build APK with Buildozer
       run: |
-        sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-    
-    - name: Install Python dependencies
-      run: |
-        pip install --upgrade pip
-        pip install buildozer cython virtualenv pillow
-    
-    - name: Create Buildozer spec file
-      run: |
+        # Create buildozer.spec
         cat > buildozer.spec << 'EOF'
 [app]
 
@@ -48,46 +38,23 @@ android.api = 30
 android.minapi = 21
 android.ndk = 23b
 android.sdk = 30
-android.archs = arm64-v8a, armeabi-v7a
+android.archs = arm64-v8a
 android.entrypoint = org.kivy.android.PythonActivity
 android.use_androidx = true
 
 presplash.filename = %(source.dir)s/presplash.png
 icon.filename = %(source.dir)s/icon.png
 EOF
-
-    - name: Create icon and splash images
-      run: |
-        python3 << 'PYTHON_EOF'
-from PIL import Image, ImageDraw, ImageFont
-
-# Create icon
-img = Image.new('RGBA', (512, 512), (33, 150, 243, 255))
-draw = ImageDraw.Draw(img)
-draw.rectangle([100, 100, 412, 412], fill=(255, 255, 255, 255))
-draw.text((180, 200), "WIFI", fill=(33, 150, 243, 255))
-img.save('icon.png')
-
-# Create presplash
-img2 = Image.new('RGBA', (1024, 1024), (33, 150, 243, 255))
-draw2 = ImageDraw.Draw(img2)
-draw2.text((300, 400), "WiFi Analyzer Pro", fill=(255, 255, 255, 255))
-img2.save('presplash.png')
-PYTHON_EOF
+        
+        # Create dummy icon and presplash
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > presplash.png
+        
+        # Build APK
+        buildozer -v android debug
     
-    - name: Build APK
-      run: buildozer android debug
-    
-    - name: List built files
-      run: |
-        echo "Listing bin directory:"
-        ls -la bin/ || echo "bin directory not found"
-        echo "Listing current directory:"
-        ls -la
-    
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: wifi-analyzer-apk
         path: bin/*.apk
-        if-no-files-found: error
