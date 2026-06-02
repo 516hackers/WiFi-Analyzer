@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,173 +21,62 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          git \
-          zip \
-          unzip \
-          openjdk-17-jdk \
-          autoconf \
-          libtool \
-          pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          libtinfo5 \
-          cmake \
-          libffi-dev \
-          libssl-dev
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
     
     - name: Install Python dependencies
       run: |
         pip install --upgrade pip
-        pip install buildozer cython virtualenv
+        pip install buildozer cython virtualenv pillow
     
     - name: Create Buildozer spec file
       run: |
         cat > buildozer.spec << 'EOF'
 [app]
 
-# (str) Title of your application
 title = WiFi Analyzer Pro
-
-# (str) Package name
 package.name = wifi_analyzer
-
-# (str) Package domain (needed for android/ios packaging)
 package.domain = org.wifianalyzer
-
-# (str) Source code directory
 source.dir = .
-
-# (list) Source files to include (let empty to include all the files)
 source.include_exts = py,png,jpg,kv,atlas
-
-# (list) Requirements
+version = 1.0
 requirements = python3,kivy==2.1.0,psutil,speedtest-cli
-
-# (str) Presplash filename
-presplash.filename = %(source.dir)s/presplash.png
-
-# (str) Icon filename
-icon.filename = %(source.dir)s/icon.png
-
-# (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
 orientation = portrait
-
-# (bool) Indicate if the application should be fullscreen or not
 fullscreen = 0
 
-# (list) Permissions
 android.permissions = INTERNET,ACCESS_WIFI_STATE,CHANGE_WIFI_STATE,ACCESS_NETWORK_STATE,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION
-
-# (int) Android API to use
 android.api = 30
-
-# (int) Minimum API required
 android.minapi = 21
-
-# (int) Android SDK version
-android.sdk = 30
-
-# (str) Android NDK version
 android.ndk = 23b
-
-# (list) Android architectures to build
+android.sdk = 30
 android.archs = arm64-v8a, armeabi-v7a
-
-# (str) Android entry point
 android.entrypoint = org.kivy.android.PythonActivity
+android.use_androidx = true
 
-# (str) Android logcat filters to use
-android.logcat_filters = *:S python:D
-
-# (bool) Enable Android Java debug mode
-android.android_debug = False
-
-# (bool) Copy prebuilt python dynamic library
-android.copy_libs = 1
-
-# (list) Android add libraries
-android.add_src =
-
-# (list) Android add directives
-android.add_manifest = 
-
-# (list) Gradle dependencies
-android.gradle_dependencies =
-
-# (bool) Enable/disable Android androidx support
-android.use_androidx = True
-
-# (str) Android NDK directory
-android.ndk_path =
-
-# (str) Android SDK directory
-android.sdk_path =
-
-# (str) Android ANT directory
-android.ant_path =
-
-# (bool) Run on external storage
-android.wakelock = False
-
-# (str) Android logcat logs directory
-android.logcat_logs =
-
-# (bool) Android logcat show all logs
-android.logcat_show_all = False
-
-# (str) iOS bundle identifier
-ios.bundle_identifier = org.wifianalyzer.wifi_analyzer
-
-# (str) iOS version
-ios.version = 1.0.0
-
-# (list) iOS architectures to build
-ios.archs = arm64
-
-# (bool) Enable/disable iOS debug mode
-ios.debug = False
-
-# (str) iOS plist
-ios.plist =
-
-# (str) iOS framework directory
-ios.framework_dir =
-
-# (str) iOS xcode project path
-ios.xcode_project_path =
-
-# (str) Command to launch iOS simulator
-ios.launch_simulator =
+presplash.filename = %(source.dir)s/presplash.png
+icon.filename = %(source.dir)s/icon.png
 EOF
 
-    - name: Create placeholder icon and splash
+    - name: Create icon and splash images
       run: |
-        # Create simple placeholder icon (64x64 blue icon)
-        python3 << 'EOF'
-from PIL import Image, ImageDraw
-        
+        python3 << 'PYTHON_EOF'
+from PIL import Image, ImageDraw, ImageFont
+
 # Create icon
 img = Image.new('RGBA', (512, 512), (33, 150, 243, 255))
 draw = ImageDraw.Draw(img)
 draw.rectangle([100, 100, 412, 412], fill=(255, 255, 255, 255))
-draw.text((200, 200), "WiFi", fill=(33, 150, 243, 255))
+draw.text((180, 200), "WIFI", fill=(33, 150, 243, 255))
 img.save('icon.png')
 
 # Create presplash
 img2 = Image.new('RGBA', (1024, 1024), (33, 150, 243, 255))
 draw2 = ImageDraw.Draw(img2)
-draw2.text((200, 400), "WiFi Analyzer Pro", fill=(255, 255, 255, 255))
+draw2.text((300, 400), "WiFi Analyzer Pro", fill=(255, 255, 255, 255))
 img2.save('presplash.png')
-EOF
-    
-    - name: Install PIL for icon creation
-      run: pip install pillow
+PYTHON_EOF
     
     - name: Build APK
-      run: |
-        buildozer android debug
+      run: buildozer android debug
     
     - name: List built files
       run: |
@@ -196,48 +85,9 @@ EOF
         echo "Listing current directory:"
         ls -la
     
-    - name: Upload APK artifact - arm64-v8a
-      uses: actions/upload-artifact@v4
-      with:
-        name: wifi-analyzer-arm64-v8a
-        path: bin/*arm64-v8a*.apk
-        if-no-files-found: warn
-    
-    - name: Upload APK artifact - armeabi-v7a
-      uses: actions/upload-artifact@v4
-      with:
-        name: wifi-analyzer-armeabi-v7a
-        path: bin/*armeabi-v7a*.apk
-        if-no-files-found: warn
-    
-    - name: Upload any APK as fallback
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
         name: wifi-analyzer-apk
         path: bin/*.apk
         if-no-files-found: error
-    
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: bin/*.apk
-        body: |
-          # WiFi Analyzer Pro APK v1.0
-          
-          ## Features:
-          - 📡 Real-time WiFi connection monitoring
-          - 📱 Connected devices detection
-          - 🏥 Router health checks (ping/latency)
-          - ⚡ Internet speed testing
-          - 📊 Network usage tracking
-          - 🔄 Auto-refresh every 10 seconds
-          
-          ## Installation:
-          1. Download the APK matching your device architecture
-          2. Enable "Unknown sources" in Android settings
-          3. Install and grant WiFi permissions
-          
-          ## Requirements:
-          - Android 5.0 (API 21) or higher
-          - WiFi connection required for full features
