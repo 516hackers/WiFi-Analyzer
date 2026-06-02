@@ -1,0 +1,72 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool
+        pip install buildozer cython
+        
+    - name: Create Buildozer spec file
+      run: |
+        buildozer init
+        # Configure buildozer.spec for the app
+        sed -i 's/title = .*/title = WiFi Analyzer Pro/' buildozer.spec
+        sed -i 's/package.name = .*/package.name = wifi_analyzer/' buildozer.spec
+        sed -i 's/package.domain = .*/package.domain = org.wifianalyzer/' buildozer.spec
+        sed -i 's/source.dir = .*/source.dir = ./' buildozer.spec
+        sed -i 's/source.include_exts = .*/source.include_exts = py,png,jpg,kv,atlas/' buildozer.spec
+        sed -i 's/version = .*/version = 1.0/' buildozer.spec
+        sed -i 's/requirements = .*/requirements = python3,kivy,psutil,speedtest-cli/' buildozer.spec
+        sed -i 's/android.permissions = .*/android.permissions = INTERNET,ACCESS_WIFI_STATE,CHANGE_WIFI_STATE,ACCESS_NETWORK_STATE,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION/' buildozer.spec
+        sed -i 's/android.api = .*/android.api = 30/' buildozer.spec
+        sed -i 's/android.minapi = .*/android.minapi = 21/' buildozer.spec
+        sed -i 's/android.ndk = .*/android.ndk = 23b/' buildozer.spec
+        sed -i 's/android.sdk = .*/android.sdk = 30/' buildozer.spec
+        sed -i 's/presplash.filename = .*/presplash.filename = %(source.dir)s/presplash.png/' buildozer.spec
+        sed -i 's/icon.filename = .*/icon.filename = %(source.dir)s/icon.png/' buildozer.spec
+    
+    - name: Create placeholder icon (optional)
+      run: |
+        # Create simple placeholder icon (you should replace with real icon)
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
+        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > presplash.png
+    
+    - name: Build APK
+      run: |
+        buildozer android debug
+    
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: wifi-analyzer-apk
+        path: bin/*.apk
+        
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: bin/*.apk
+        body: |
+          WiFi Analyzer Pro APK
+          - Real-time device monitoring
+          - Router health checks
+          - Speed testing
+          - Network usage tracking
