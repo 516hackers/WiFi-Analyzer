@@ -1,60 +1,28 @@
-name: Build Android APK
+name: Build APK
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+    - uses: actions/checkout@v4
     
-    - name: Build APK with Buildozer
+    - name: Install buildozer
       run: |
-        # Create buildozer.spec
-        cat > buildozer.spec << 'EOF'
-[app]
-
-title = WiFi Analyzer Pro
-package.name = wifi_analyzer
-package.domain = org.wifianalyzer
-source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
-version = 1.0
-requirements = python3,kivy==2.1.0,psutil,speedtest-cli
-orientation = portrait
-fullscreen = 0
-
-android.permissions = INTERNET,ACCESS_WIFI_STATE,CHANGE_WIFI_STATE,ACCESS_NETWORK_STATE,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION
-android.api = 30
-android.minapi = 21
-android.ndk = 23b
-android.sdk = 30
-android.archs = arm64-v8a
-android.entrypoint = org.kivy.android.PythonActivity
-android.use_androidx = true
-
-presplash.filename = %(source.dir)s/presplash.png
-icon.filename = %(source.dir)s/icon.png
-EOF
-        
-        # Create dummy icon and presplash
-        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
-        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > presplash.png
-        
-        # Build APK
-        buildozer -v android debug
+        sudo apt-get update
+        sudo apt-get install -y python3-pip
+        pip3 install buildozer
+    
+    - name: Build APK
+      run: |
+        buildozer init
+        buildozer android debug
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: wifi-analyzer-apk
+        name: app
         path: bin/*.apk
