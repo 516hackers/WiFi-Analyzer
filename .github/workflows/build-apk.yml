@@ -23,71 +23,74 @@ jobs:
           sudo apt-get install -y \
             zip unzip build-essential git \
             libffi-dev libssl-dev autoconf \
-            libtool pkg-config cmake
+            libtool pkg-config cmake \
+            python3-pip
 
-      - name: Install Python dependencies
+      - name: Install Cython and Buildozer
         run: |
-          pip install --upgrade pip
-          pip install cython==0.29.33 buildozer kivy psutil speedtest-cli pillow
+          pip3 install --upgrade pip
+          pip3 install cython==0.29.33
+          pip3 install buildozer
 
       - name: Create buildozer.spec
         run: |
           cat > buildozer.spec << 'SPEC'
           [app]
-          title = WiFi Analyzer Pro
+          title = WiFi Analyzer
           package.name = wifianalyzer
           package.domain = org.wifianalyzer
           source.dir = .
-          source.include_exts = py,png,jpg
+          source.include_exts = py
           version = 1.0
-          requirements = python3,kivy==2.1.0,psutil,speedtest-cli
+          requirements = python3,kivy,psutil,speedtest-cli
           orientation = portrait
-          android.permissions = INTERNET,ACCESS_WIFI_STATE,CHANGE_WIFI_STATE,ACCESS_NETWORK_STATE,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION
-          android.api = 33
+          android.permissions = INTERNET,ACCESS_WIFI_STATE,CHANGE_WIFI_STATE,ACCESS_NETWORK_STATE
+          android.api = 30
           android.minapi = 21
-          android.ndk = 25b
+          android.ndk = 23c
+          android.sdk = 30
           android.accept_sdk_license = True
           android.archs = arm64-v8a
           fullscreen = 0
           log_level = 2
-          presplash.filename = %(source.dir)s/presplash.png
-          icon.filename = %(source.dir)s/icon.png
 
           [buildozer]
           log_level = 2
           warn_on_root = 1
           SPEC
 
-      - name: Create icon and splash images
-        run: |
-          python3 << 'PYEOF'
-          from PIL import Image, ImageDraw
-          
-          # Create icon
-          img = Image.new('RGBA', (512, 512), (33, 150, 243, 255))
-          draw = ImageDraw.Draw(img)
-          draw.rectangle([100, 100, 412, 412], fill=(255, 255, 255, 255))
-          draw.text((180, 200), "WiFi", fill=(33, 150, 243, 255))
-          img.save('icon.png')
-          
-          # Create presplash
-          img2 = Image.new('RGBA', (1024, 1024), (33, 150, 243, 255))
-          draw2 = ImageDraw.Draw(img2)
-          draw2.text((300, 400), "WiFi Analyzer", fill=(255, 255, 255, 255))
-          img2.save('presplash.png')
-          PYEOF
-
       - name: Accept Android licenses
         run: |
           mkdir -p ~/.android
           echo "count=0" > ~/.android/repositories.cfg
 
-      - name: Build APK
+      - name: Build APK with verbose output
         env:
           JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
-        run: buildozer android debug
+        run: |
+          # Initialize buildozer
+          buildozer init
+          # Build with verbose logging
+          buildozer android debug --verbose 2>&1 | tee build.log
+
+      - name: Check build log for errors
+        if: failure()
+        run: |
+          echo "=== Build Log (last 100 lines) ==="
+          tail -100 build.log
+          echo "=== Looking for common errors ==="
+          grep -i "error" build.log || echo "No errors found in log"
+          grep -i "fail" build.log || echo "No failures found in log"
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: WiFiAnalyzer-APK
