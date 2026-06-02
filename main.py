@@ -274,8 +274,255 @@ class WiFiAnalyzer:
                 'error': str(e)
             }
 
-# Rest of the UI code remains the same as in the previous response...
-# (Keep the WiFiAnalyzerUI and WiFiAnalyzerApp classes from the previous response)
+class WiFiAnalyzerUI(BoxLayout):
+    """Main UI for WiFi Analyzer App"""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.padding = dp(10)
+        self.spacing = dp(10)
+        
+        # Set background color
+        with self.canvas.before:
+            Color(0.95, 0.95, 0.95, 1)
+            self.rect = RoundedRectangle(size=self.size, pos=self.pos, radius=[dp(10)])
+        self.bind(size=self._update_rect, pos=self._update_rect)
+        
+        # Title
+        title = Label(
+            text="[b]WiFi Analyzer Pro[/b]",
+            markup=True,
+            font_size=dp(24),
+            size_hint_y=0.08,
+            color=get_color_from_hex('#2196F3')
+        )
+        self.add_widget(title)
+        
+        # Create scrollable content
+        scroll = ScrollView(size_hint_y=0.92)
+        self.content = GridLayout(cols=1, spacing=dp(15), size_hint_y=None)
+        self.content.bind(minimum_height=self.content.setter('height'))
+        
+        # WiFi Info Section
+        self.wifi_card = self.create_card("📡 WiFi Connection")
+        self.wifi_ssid = self.add_info_row(self.wifi_card, "SSID:", "Scanning...")
+        self.wifi_signal = self.add_info_row(self.wifi_card, "Signal:", "0%")
+        self.wifi_signal_bar = ProgressBar(max=100, value=0, size_hint_y=None, height=dp(20))
+        self.wifi_card.add_widget(self.wifi_signal_bar)
+        
+        # Router Health Section
+        self.router_card = self.create_card("🏥 Router Health")
+        self.router_status = self.add_info_row(self.router_card, "Status:", "Checking...")
+        self.router_latency = self.add_info_row(self.router_card, "Latency:", "0 ms")
+        self.router_loss = self.add_info_row(self.router_card, "Packet Loss:", "0%")
+        self.router_ip = self.add_info_row(self.router_card, "Router IP:", "0.0.0.0")
+        
+        # Connected Devices Section
+        self.devices_card = self.create_card("📱 Connected Devices")
+        self.devices_count = self.add_info_row(self.devices_card, "Total Devices:", "0")
+        self.devices_list = Label(
+            text="No devices found",
+            size_hint_y=None,
+            text_size=(Window.width - dp(40), None),
+            valign='top',
+            font_size=dp(12)
+        )
+        self.devices_list.bind(size=self.devices_list.setter('text_size'))
+        self.devices_card.add_widget(self.devices_list)
+        
+        # Network Usage Section
+        self.usage_card = self.create_card("📊 Network Usage")
+        self.download_usage = self.add_info_row(self.usage_card, "Download Total:", "0 MB")
+        self.upload_usage = self.add_info_row(self.usage_card, "Upload Total:", "0 MB")
+        
+        # Speed Test Section
+        self.speed_card = self.create_card("⚡ Speed Test")
+        self.speed_download = self.add_info_row(self.speed_card, "Download Speed:", "0 Mbps")
+        self.speed_upload = self.add_info_row(self.speed_card, "Upload Speed:", "0 Mbps")
+        self.speed_ping = self.add_info_row(self.speed_card, "Ping:", "0 ms")
+        
+        # Buttons
+        button_layout = BoxLayout(size_hint_y=0.15, spacing=dp(10))
+        refresh_btn = Button(text="🔄 Refresh", font_size=dp(16), background_color=get_color_from_hex('#2196F3'))
+        refresh_btn.bind(on_press=self.refresh_data)
+        speed_btn = Button(text="⚡ Test Speed", font_size=dp(16), background_color=get_color_from_hex('#4CAF50'))
+        speed_btn.bind(on_press=self.test_speed)
+        button_layout.add_widget(refresh_btn)
+        button_layout.add_widget(speed_btn)
+        
+        self.content.add_widget(self.wifi_card)
+        self.content.add_widget(self.router_card)
+        self.content.add_widget(self.devices_card)
+        self.content.add_widget(self.usage_card)
+        self.content.add_widget(self.speed_card)
+        self.content.add_widget(button_layout)
+        
+        scroll.add_widget(self.content)
+        self.add_widget(scroll)
+        
+        # Start auto-refresh
+        self.refresh_data()
+        Clock.schedule_interval(lambda dt: self.refresh_data(), 10)
+        Clock.schedule_interval(self.update_network_usage, 2)
+    
+    def _update_rect(self, instance, value):
+        """Update background rectangle"""
+        self.rect.pos = instance.pos
+        self.rect.size = instance.size
+    
+    def create_card(self, title):
+        """Create a styled card container"""
+        card = BoxLayout(
+            orientation='vertical',
+            padding=dp(10),
+            spacing=dp(5),
+            size_hint_y=None,
+            height=dp(200)
+        )
+        
+        with card.canvas.before:
+            Color(1, 1, 1, 1)
+            self.card_rect = RoundedRectangle(size=card.size, pos=card.pos, radius=[dp(10)])
+        card.bind(size=self._update_card_rect, pos=self._update_card_rect)
+        
+        title_label = Label(
+            text=f"[b]{title}[/b]",
+            markup=True,
+            font_size=dp(18),
+            size_hint_y=None,
+            height=dp(30),
+            color=get_color_from_hex('#333333')
+        )
+        card.add_widget(title_label)
+        
+        return card
+    
+    def _update_card_rect(self, instance, value):
+        """Update card background"""
+        instance.canvas.before.clear()
+        with instance.canvas.before:
+            Color(1, 1, 1, 1)
+            RoundedRectangle(size=instance.size, pos=instance.pos, radius=[dp(10)])
+    
+    def add_info_row(self, card, label, value):
+        """Add a label-value row to a card"""
+        row = BoxLayout(size_hint_y=None, height=dp(30))
+        label_widget = Label(
+            text=label,
+            font_size=dp(14),
+            size_hint_x=0.4,
+            halign='left',
+            color=get_color_from_hex('#666666')
+        )
+        label_widget.bind(size=label_widget.setter('text_size'))
+        value_widget = Label(
+            text=value,
+            font_size=dp(14),
+            size_hint_x=0.6,
+            halign='left',
+            color=get_color_from_hex('#333333')
+        )
+        value_widget.bind(size=value_widget.setter('text_size'))
+        row.add_widget(label_widget)
+        row.add_widget(value_widget)
+        card.add_widget(row)
+        return value_widget
+    
+    def refresh_data(self, *args):
+        """Refresh all data except speed test"""
+        threading.Thread(target=self._refresh_data_thread, daemon=True).start()
+    
+    def _refresh_data_thread(self):
+        """Thread function to refresh data"""
+        # Get WiFi info
+        wifi_info = WiFiAnalyzer.get_wifi_info()
+        Clock.schedule_once(lambda dt: self.update_wifi_info(wifi_info))
+        
+        # Get router health
+        router_health = WiFiAnalyzer.get_router_health()
+        Clock.schedule_once(lambda dt: self.update_router_health(router_health))
+        
+        # Get connected devices
+        devices = WiFiAnalyzer.get_connected_devices()
+        Clock.schedule_once(lambda dt: self.update_devices(devices))
+    
+    def update_wifi_info(self, wifi_info):
+        """Update WiFi information on UI"""
+        self.wifi_ssid.text = wifi_info['ssid']
+        signal_text = f"{wifi_info['signal']}%"
+        if wifi_info['rssi']:
+            signal_text += f" (RSSI: {wifi_info['rssi']} dBm)"
+        self.wifi_signal.text = signal_text
+        self.wifi_signal_bar.value = wifi_info['signal']
+    
+    def update_router_health(self, health):
+        """Update router health information"""
+        self.router_status.text = health['status']
+        self.router_latency.text = f"{health['latency']:.1f} ms" if health['latency'] else "N/A"
+        self.router_loss.text = f"{health['packet_loss']}%"
+        self.router_ip.text = health['router_ip']
+    
+    def update_devices(self, devices):
+        """Update connected devices list"""
+        self.devices_count.text = str(len(devices))
+        
+        if devices:
+            device_text = "\n".join([
+                f"• {d['hostname']}\n  IP: {d['ip']}\n  MAC: {d['mac'][-8:]}\n"
+                for d in devices[:20]
+            ])
+            self.devices_list.text = device_text
+            self.devices_card.height = dp(100 + len(devices[:20]) * dp(60))
+        else:
+            self.devices_list.text = "No devices found\nMake sure you're connected to WiFi"
+            self.devices_card.height = dp(150)
+    
+    def update_network_usage(self, dt):
+        """Update network usage in real-time"""
+        usage = WiFiAnalyzer.get_network_usage()
+        self.download_usage.text = f"{usage['bytes_recv']:.1f} MB"
+        self.upload_usage.text = f"{usage['bytes_sent']:.1f} MB"
+    
+    def test_speed(self, *args):
+        """Run speed test in separate thread"""
+        self.speed_download.text = "Testing..."
+        self.speed_upload.text = "Testing..."
+        self.speed_ping.text = "Testing..."
+        
+        threading.Thread(target=self._test_speed_thread, daemon=True).start()
+    
+    def _test_speed_thread(self):
+        """Thread function for speed test"""
+        speed_data = WiFiAnalyzer.measure_speed()
+        Clock.schedule_once(lambda dt: self.update_speed(speed_data))
+    
+    def update_speed(self, speed_data):
+        """Update speed test results"""
+        if 'error' in speed_data:
+            self.speed_download.text = "Error"
+            self.speed_upload.text = "Error"
+            self.speed_ping.text = "Error"
+        else:
+            self.speed_download.text = f"{speed_data['download']} Mbps"
+            self.speed_upload.text = f"{speed_data['upload']} Mbps"
+            self.speed_ping.text = f"{speed_data['ping']} ms"
+
+class WiFiAnalyzerApp(App):
+    """Main Application Class"""
+    
+    def build(self):
+        Window.size = (dp(360), dp(640))
+        Window.clearcolor = get_color_from_hex('#F5F5F5')
+        return WiFiAnalyzerUI()
+    
+    def on_pause(self):
+        """Handle app pause for Android"""
+        return True
+    
+    def on_resume(self):
+        """Handle app resume for Android"""
+        pass
 
 if __name__ == '__main__':
     WiFiAnalyzerApp().run()
